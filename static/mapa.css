@@ -348,3 +348,27 @@
 }
 .mapa-casa a { color: var(--paper); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
 .mapa-casa a:focus-visible { outline: 3px solid #d4a017; outline-offset: 2px; }
+
+/* --- Lugares fijos ("Ver también lugares") ---------------------------------------------- */
+.mapa-chip-lugares[aria-pressed="true"] { background: #6b6f76; border-color: #6b6f76; color: #fff; }
+.mapa-pin--lugar {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #8a8f98;
+  border: 2px solid #fff;
+  color: #fff;
+  opacity: .92;
+}
+.mapa-pin--lugar svg { width: 16px; height: 16px; }
+.mapa-pop-tipo, .mapa-pop-dir { margin: 0 0 4px; color: var(--muted); font-size: .85rem; }
+.mapa-pop-nada { margin: 0 0 6px; font-size: .85rem; }
+.mapa-pop-horario { margin: 0 0 6px; font-size: .88rem; }
+.mapa-pop-horario span { color: var(--muted); font-size: .78rem; }
+.mapa-lugares-lista { margin: 18px 0; }
+.mapa-lugares-lista summary { cursor: pointer; font-weight: 700; font-size: 1.05rem; }
+.mapa-lugares-lista summary span { color: var(--muted); font-weight: 400; }
+.mapa-lugares-lista ul { list-style: none; margin: 10px 0 0; padding: 0; }
+.mapa-lugares-lista li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.mapa-lugares-lista li span { display: block; color: var(--muted); font-size: .88rem; }
+.mapa-lugares-lista .mapa-llegar { font-size: .85rem; }

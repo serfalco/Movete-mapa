@@ -63,6 +63,14 @@ y hay que pedirle las coordenadas a Tres.
   la distancia de cada evento en cuadras (120 m, de esquina a esquina). Si el
   visitante no comparte la ubicación, elige un punto de partida
   (`puntos_partida.py`, coordenadas de OSM).
+- **Lugares fijos:** el toggle "Ver también lugares" suma pines grises.
+  Muestra las salas con coordenadas que no tienen un evento a la vista (una
+  sala con eventos sale como evento, nunca dos veces) y los museos,
+  bibliotecas y centros culturales de `lugares.py`. Todo sale de OSM: nombre,
+  coordenadas, dirección y horario, si los tiene, cada uno con su id de OSM.
+  Debajo de la lista de eventos hay una lista plegada "Lugares para visitar",
+  que va en el HTML. Un lugar enlaza a su página de sala solo si
+  `Movete-info/en-vivo/sala/<slug>/` existe.
 - **SEO:** la lista de eventos va en el HTML, porque Google casi no lee el mapa
   en JS.
 - **Zonas:** una página por zona en `/mapa/<zona>/` (casco, Meridiano V,

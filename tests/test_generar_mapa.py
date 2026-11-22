@@ -8,7 +8,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from generar_mapa import armar_datos, generar, modo_gratis, render_pagina  # noqa: E402
+from generar_mapa import (  # noqa: E402
+    _metros,
+    armar_datos,
+    armar_lugares,
+    generar,
+    modo_gratis,
+    render_pagina,
+)
+from lugares import LUGARES, TIPOS, horario_legible  # noqa: E402
+from zonas import ZONAS  # noqa: E402
 
 HOY = date(2026, 11, 21)
 
@@ -203,6 +212,78 @@ class DeLaCasaTests(unittest.TestCase):
         datos = armar_datos(con, HOY)
         otra = next(e for e in datos['eventos'] if e['titulo'] == 'Otra función')
         self.assertEqual(otra['sala'], 'tres-empanadas-comedia')
+
+
+class LugaresTests(unittest.TestCase):
+    def setUp(self):
+        self.lugares = armar_lugares()
+        self.por_id = {lu['id']: lu for lu in self.lugares}
+
+    def test_datos_de_lugares_completos_y_sin_repetir(self):
+        slugs = [x[0] for x in LUGARES]
+        self.assertEqual(len(slugs), len(set(slugs)))
+        for slug, nombre, tipo, lat, lng, _d, _h, zona, osm in LUGARES:
+            self.assertIn(tipo, TIPOS, slug)
+            self.assertTrue(-35.1 < lat < -34.8 and -58.2 < lng < -57.8, slug)
+            self.assertRegex(osm, r'^(node|way|relation)/\d+$', slug)
+            self.assertIn(zona, {None} | {z for z, _n, _p in ZONAS}, slug)
+
+    def test_salas_con_coordenadas_son_lugares(self):
+        self.assertIn('s-tres-empanadas-comedia', self.por_id)
+        self.assertIn('s-museo-almafuerte', self.por_id)
+        # Dos nombres en la misma coordenada: un solo lugar.
+        self.assertNotIn('s-sociedad-platense-de-stand-up', self.por_id)
+        self.assertNotIn('s-casa-metro', self.por_id)
+
+    def test_lugar_encima_de_una_sala_no_se_repite(self):
+        coords = [(lu['lat'], lu['lng']) for lu in self.lugares]
+        for i, a in enumerate(coords):
+            for b in coords[i + 1:]:
+                self.assertGreater(_metros(a, b), 1)
+        self.assertIn('l-museo-de-fisica', self.por_id)
+
+    def test_horario_legible(self):
+        self.assertEqual(horario_legible('Mo-Fr 09:00-18:00'), 'lun a vie 9 a 18')
+        self.assertEqual(horario_legible('Mo-Su 10:00-13:00,15:00-18:00'), 'lun a dom 10 a 13 y 15 a 18')
+        self.assertEqual(horario_legible('Mo,We 14:00-17:00, Tu-Fr 09:30-12:30'),
+                         'lun y mié 14 a 17; mar a vie 9:30 a 12:30')
+        self.assertEqual(horario_legible('Mo-Fr 13:00-22:00; Sa 13:00-18:00'), 'lun a vie 13 a 22; sáb 13 a 18')
+        # Lo que no se entiende no se muestra.
+        self.assertIsNone(horario_legible('Mo-Fr 09:00-18:00 "con turno"'))
+        self.assertIsNone(horario_legible('sunrise-sunset'))
+        self.assertIsNone(horario_legible(None))
+
+    def test_toggle_y_lista_en_la_pagina(self):
+        datos = armar_datos(EVENTOS, HOY)
+        html = render_pagina(datos, HOY)
+        self.assertIn('data-lugares=""', html)
+        self.assertIn('>Ver también lugares</button>', html)
+        self.assertIn('<summary>Lugares para visitar', html)
+        self.assertIn('Museo de Física', html)
+        # Una sala con eventos esta semana no se lista como lugar fijo.
+        lista = re.search(r'<details class="mapa-lugares-lista">.*?</details>', html, re.S).group(0)
+        self.assertNotIn('Tres Empanadas Comedia', lista)
+        self.assertIn('Museo Almafuerte', lista)
+        m = re.search(r'<script id="mapa-datos" type="application/json">(.*?)</script>', html, re.S)
+        lugares = json.loads(m.group(1))['lugares']
+        te = next(x for x in lugares if x['id'] == 's-tres-empanadas-comedia')
+        self.assertEqual(te['s'], 'tres-empanadas-comedia')   # mapa.js lo esconde si hay evento
+        self.assertNotIn('u', te)   # sin página de sala generada no hay link
+
+    def test_lugares_por_zona(self):
+        datos = armar_datos(EVENTOS, HOY)
+        html = render_pagina(datos, HOY, zona='city-bell')
+        self.assertIn('Biblioteca Popular Eduardo Galeano', html)
+        self.assertNotIn('Museo de Física', html)
+        meridiano = render_pagina(datos, HOY, zona='meridiano-v')
+        self.assertIn('Centro Cultural Estación Provincial', meridiano)
+        casco = render_pagina(datos, HOY, zona='casco')
+        self.assertIn('Centro Cultural Estación Provincial', casco)   # Meridiano V es casco
+
+    def test_link_a_la_sala_solo_si_existe(self):
+        datos = armar_datos(EVENTOS, HOY)
+        html = render_pagina(datos, HOY, paginas_sala={'museo-almafuerte'})
+        self.assertIn('<a href="/en-vivo/sala/museo-almafuerte/">Museo Almafuerte</a>', html)
 
 
 class GenerarTests(unittest.TestCase):

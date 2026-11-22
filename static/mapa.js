@@ -40,6 +40,18 @@
       'stroke-linecap="round" stroke-linejoin="round">' + (ICONOS[cat] || ICONOS.otros) + '</svg>';
   }
 
+  // Lugares fijos: mismo estilo de trazo, pin gris.
+  var ICONOS_LUGAR = {
+    'museo': '<path d="M3 22h18"/><path d="M6 18v-7M10 18v-7M14 18v-7M18 18v-7"/><path d="m12 2 8 5H4Z"/>',
+    'biblioteca': '<path d="m16 6 4 14"/><path d="M12 6v14"/><path d="M8 8v12"/><path d="M4 4v16"/>',
+    'centro-cultural': '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01"/>',
+    'sala': '<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>'
+  };
+  function iconoLugar(k) {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" ' +
+      'stroke-linecap="round" stroke-linejoin="round">' + (ICONOS_LUGAR[k] || ICONOS_LUGAR.sala) + '</svg>';
+  }
+
   function escapar(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -78,7 +90,7 @@
     };
   }).filter(function (e) { return e.li; });
 
-  var estado = { cuando: 'semana', franja: '', rubro: '', gratis: false, orden: 'hora', origen: null };
+  var estado = { cuando: 'semana', franja: '', rubro: '', gratis: false, lugares: false, orden: 'hora', origen: null };
 
   function vigente(e) { return e.fin > ahora; }
   function pasaCuando(e) {
@@ -137,7 +149,7 @@
   }
 
   // --- Mapa -------------------------------------------------------------
-  var mapa = null, capaPines = null, marcadorOrigen = null, marcadores = {}, primerEncuadre = true;
+  var mapa = null, capaPines = null, capaLugares = null, marcadorOrigen = null, marcadores = {}, primerEncuadre = true;
   var centro = DATOS.centro || DATOS.puntos[0];   // en una zona, su centro
 
   function nocheAhora() {
@@ -161,6 +173,7 @@
     } else {
       cont.classList.add('mapa-sin-fondo');
     }
+    capaLugares = L.layerGroup().addTo(mapa);   // debajo de los eventos
     capaPines = L.layerGroup().addTo(mapa);
   }
 
@@ -219,6 +232,43 @@
       var cerca = limites.filter(function (p) { return metros(centro, { lat: p[0], lng: p[1] }) < 4000; });
       if (cerca.length >= 3) mapa.fitBounds(cerca, { padding: [30, 30], maxZoom: 15 });
     }
+  }
+
+  // --- Lugares fijos ("Ver también lugares") ------------------------------------
+  // Una sala con un evento a la vista ya tiene su pin de color: el gris no
+  // se dibuja, así nunca sale dos veces.
+  var LUGARES = DATOS.lugares || [];
+
+  function popupLugar(l) {
+    var nombre = l.u ? '<a href="' + escapar(l.u) + '">' + escapar(l.n) + '</a>' : escapar(l.n);
+    var d = estado.origen ? metros(estado.origen, l) : null;
+    return '<div class="mapa-pop mapa-pop--lugar">' +
+      '<p class="mapa-pop-sala">' + nombre + '</p>' +
+      (l.t ? '<p class="mapa-pop-tipo">' + escapar(l.t) + '</p>' : '') +
+      (d != null ? '<p class="mapa-pop-dist">' + escapar(textoDistancia(d)) + '</p>' : '') +
+      (l.s ? '<p class="mapa-pop-nada">Nada en la cartelera con estos filtros.</p>' : '') +
+      (l.h ? '<p class="mapa-pop-horario">Horario: ' + escapar(l.h) + ' <span>(según OpenStreetMap)</span></p>' : '') +
+      (l.d ? '<p class="mapa-pop-dir">' + escapar(l.d) + '</p>' : '') +
+      '<a class="mapa-llegar" href="' + linkLlegar(l) + '" target="_blank" rel="noopener">Cómo llegar</a>' +
+      '</div>';
+  }
+
+  function dibujarLugares() {
+    if (!mapa) return;
+    capaLugares.clearLayers();
+    if (!estado.lugares) return;
+    LUGARES.forEach(function (l) {
+      if (l.s && marcadores[l.s]) return;
+      var m = L.marker([l.lat, l.lng], {
+        icon: L.divIcon({ className: 'mapa-pin-wrap', html: '<span class="mapa-pin mapa-pin--lugar">' + iconoLugar(l.k) + '</span>',
+          iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -14] }),
+        title: l.n + (l.t ? ' · ' + l.t : ''),
+        alt: l.n,
+        zIndexOffset: -1000
+      });
+      m.bindPopup(function () { return popupLugar(l); }, { maxWidth: 260 });
+      m.addTo(capaLugares);
+    });
   }
 
   // --- Lista --------------------------------------------------------------
@@ -286,6 +336,7 @@
     var lista = visibles();
     actualizarLista(lista);
     dibujarPines(lista);
+    dibujarLugares();
     actualizarCerca();
     actualizarAviso();
     document.querySelector('.mapa-orden').hidden = !estado.origen;
@@ -439,6 +490,15 @@
       estado.gratis = !estado.gratis;
       chipGratis.setAttribute('aria-pressed', estado.gratis ? 'true' : 'false');
       aplicar();
+    });
+  }
+
+  var chipLugares = document.querySelector('[data-lugares]');
+  if (chipLugares) {
+    chipLugares.addEventListener('click', function () {
+      estado.lugares = !estado.lugares;
+      chipLugares.setAttribute('aria-pressed', estado.lugares ? 'true' : 'false');
+      dibujarLugares();
     });
   }
 

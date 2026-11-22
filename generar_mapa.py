@@ -24,6 +24,7 @@ import re
 import shutil
 import sys
 from datetime import date, datetime, time, timedelta
+from math import asin, cos, radians, sin, sqrt
 from pathlib import Path
 from string import Template
 from urllib.parse import quote_plus
@@ -57,8 +58,9 @@ from venues import (  # noqa: E402
     venue_slug,
 )
 
+from lugares import LUGARES, TIPOS, horario_legible  # noqa: E402
 from puntos_partida import PUNTOS_PARTIDA  # noqa: E402
-from zonas import ZONAS, zonas_de  # noqa: E402
+from zonas import DENTRO_DE, ZONAS, zonas_de  # noqa: E402
 
 # El mapa muestra de hoy en adelante: la semana que filtra la página y un día
 # de margen, porque el generador corre martes, jueves y domingo.
@@ -103,6 +105,66 @@ def pines_por_coordenada() -> dict[tuple[float, float], tuple[str, dict]]:
         if vc and vc['lat'] is not None:
             pines.setdefault((vc['lat'], vc['lng']), (vc['slug'], vc))
     return pines
+
+
+# Un lugar fijo a menos de esto de una sala con pin es la misma casa: no se repite.
+MISMO_LUGAR_M = 60
+
+
+def _metros(a: tuple[float, float], b: tuple[float, float]) -> float:
+    dlat, dlng = radians(b[0] - a[0]), radians(b[1] - a[1])
+    h = sin(dlat / 2) ** 2 + cos(radians(a[0])) * cos(radians(b[0])) * sin(dlng / 2) ** 2
+    return 2 * 6371000 * asin(sqrt(h))
+
+
+def armar_lugares(paginas_sala: set[str] | None = None) -> list[dict]:
+    """Lugares fijos para el toggle "Ver también lugares".
+
+    Primero las salas con coordenadas, con 'sala': mapa.js esconde su pin gris
+    mientras esa sala tenga un evento a la vista, así nunca sale dos veces.
+    Después los museos, bibliotecas y centros culturales de lugares.py que no
+    caen encima de una sala.
+    """
+    paginas_sala = paginas_sala or set()
+    out = []
+    for (lat, lng), (slug, vc) in pines_por_coordenada().items():
+        out.append({'id': f's-{slug}', 'nombre': vc['nombre'], 'tipo': 'sala', 'lat': lat, 'lng': lng,
+                    'direccion': vc['direccion'] or '', 'horario': None,
+                    'zonas': zonas_de(slug, vc['direccion'] or ''),
+                    'url': f'/en-vivo/sala/{slug}/' if slug in paginas_sala else '', 'sala': slug})
+    salas = [(o['lat'], o['lng']) for o in out]
+    for slug, nombre, tipo, lat, lng, direccion, oh, zona, _osm in LUGARES:
+        if any(_metros((lat, lng), c) < MISMO_LUGAR_M for c in salas):
+            continue
+        zonas = set()
+        if zona:
+            zonas = {zona, DENTRO_DE[zona]} if zona in DENTRO_DE else {zona}
+        out.append({'id': f'l-{slug}', 'nombre': nombre, 'tipo': tipo, 'lat': lat, 'lng': lng,
+                    'direccion': direccion, 'horario': horario_legible(oh), 'zonas': zonas,
+                    'url': '', 'sala': None})
+    return out
+
+
+def render_lugares(lugares: list[dict], salas_con_eventos: set[str]) -> str:
+    """Lista indexable de los lugares fijos, plegada debajo de la de eventos.
+    No repite las salas que esta semana ya salen con eventos."""
+    fijos = [lu for lu in lugares if not lu['sala'] or lu['sala'] not in salas_con_eventos]
+    if not fijos:
+        return ''
+    fijos.sort(key=lambda lu: (lu['tipo'] == 'sala', _normalizar(lu['nombre'])))
+    filas = []
+    for lu in fijos:
+        nombre = esc(lu['nombre'])
+        if lu['url']:
+            nombre = f'<a href="{esc(lu["url"])}">{nombre}</a>'
+        detalle = ' · '.join(esc(x) for x in (TIPOS.get(lu['tipo'], ''), lu['direccion'], lu['horario']) if x)
+        llegar = f"https://www.google.com/maps/dir/?api=1&destination={lu['lat']},{lu['lng']}"
+        filas.append(f'<li><strong>{nombre}</strong>' + (f' <span>{detalle}</span>' if detalle else '')
+                     + f' <a class="mapa-llegar" href="{esc(llegar)}" target="_blank" rel="noopener"'
+                     f' aria-label="Cómo llegar a {esc(lu["nombre"])} en Google Maps">Cómo llegar</a></li>')
+    return ('<details class="mapa-lugares-lista">\n          <summary>Lugares para visitar '
+            f'<span>{len(fijos)}</span></summary>\n          <ul>\n            '
+            + '\n            '.join(filas) + '\n          </ul>\n        </details>')
 
 
 def _hora(f: datetime, sin_hora: bool) -> str:
@@ -251,7 +313,7 @@ def render_item(item: dict, salas: dict) -> str:
 
 
 def datos_cliente(datos: dict, centro: tuple[float, float] | None = None,
-                  casa: dict | None = None) -> str:
+                  casa: dict | None = None, lugares: list[dict] | None = None) -> str:
     """JSON que lee mapa.js. Seguro para ir dentro de <script>."""
     eventos = []
     for it in datos['eventos']:
@@ -274,6 +336,15 @@ def datos_cliente(datos: dict, centro: tuple[float, float] | None = None,
         payload['centro'] = {'lat': centro[0], 'lng': centro[1]}
     if casa:
         payload['casa'] = casa
+    if lugares:
+        payload['lugares'] = []
+        for lu in lugares:
+            x = {'id': lu['id'], 'n': lu['nombre'], 't': TIPOS.get(lu['tipo'], ''), 'k': lu['tipo'],
+                 'lat': lu['lat'], 'lng': lu['lng']}
+            for clave, campo in (('h', 'horario'), ('d', 'direccion'), ('u', 'url'), ('s', 'sala')):
+                if lu[campo]:
+                    x[clave] = lu[campo]
+            payload['lugares'].append(x)
     return json.dumps(payload, ensure_ascii=False, separators=(',', ':')).replace('<', '\\u003c')
 
 
@@ -367,8 +438,12 @@ def render_zonas(cuentas: dict[str, int], actual: str | None) -> str:
 
 
 def render_pagina(datos: dict, hoy: date, zona: str | None = None,
-                  cuentas: dict[str, int] | None = None) -> str:
+                  cuentas: dict[str, int] | None = None,
+                  paginas_sala: set[str] | None = None) -> str:
     cuentas = cuentas if cuentas is not None else cuentas_por_zona(datos)
+    lugares = armar_lugares(paginas_sala)
+    if zona:
+        lugares = [lu for lu in lugares if zona in lu['zonas']]
     # El aviso va en todas las páginas, también en las zonas donde TE no está.
     casa = datos_casa(datos)
     aviso = render_aviso(casa, datos)
@@ -418,8 +493,11 @@ def render_pagina(datos: dict, hoy: date, zona: str | None = None,
         lista=lista,
         zonas=render_zonas(cuentas, zona),
         gratis=render_gratis(datos),
+        ver_lugares=('<button type="button" class="mapa-chip mapa-chip-lugares" data-lugares="" '
+                     'aria-pressed="false">Ver también lugares</button>') if lugares else '',
+        lugares=render_lugares(lugares, set(datos['salas'])),
         aviso=aviso,
-        datos=datos_cliente(datos, centro, casa),
+        datos=datos_cliente(datos, centro, casa, lugares),
         anio=hoy.year,
         v_css=_version(AQUI / 'static' / 'mapa.css'),
         v_js=_version(AQUI / 'static' / 'mapa.js'),
@@ -445,11 +523,17 @@ def generar(eventos_json: str | Path, output_dir: str | Path, hoy: date | None =
     cuentas = cuentas_por_zona(datos)
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
-    (out / 'index.html').write_text(render_pagina(datos, hoy, cuentas=cuentas), encoding='utf-8')
+    # Las páginas de sala las escribe movete-espectaculos antes que el mapa:
+    # un lugar fijo enlaza la suya solo si existe.
+    dir_salas = out.parent / 'en-vivo' / 'sala'
+    paginas_sala = {d.name for d in dir_salas.iterdir() if d.is_dir()} if dir_salas.is_dir() else set()
+    (out / 'index.html').write_text(
+        render_pagina(datos, hoy, cuentas=cuentas, paginas_sala=paginas_sala), encoding='utf-8')
     for z, _n, _p in ZONAS:
         (out / z).mkdir(exist_ok=True)
         (out / z / 'index.html').write_text(
-            render_pagina(datos, hoy, zona=z, cuentas=cuentas), encoding='utf-8')
+            render_pagina(datos, hoy, zona=z, cuentas=cuentas, paginas_sala=paginas_sala),
+            encoding='utf-8')
     for nombre in ('mapa.css', 'mapa.js'):
         shutil.copyfile(AQUI / 'static' / nombre, out / nombre)
     escribir_sitemap(out, cuentas, hoy)
@@ -457,6 +541,7 @@ def generar(eventos_json: str | Path, output_dir: str | Path, hoy: date | None =
         'eventos': len(datos['eventos']),
         'con_pin': sum(1 for it in datos['eventos'] if it['sala']),
         'salas_con_pin': len(datos['salas']),
+        'lugares_fijos': len(armar_lugares()),
         'por_zona': cuentas,
         'sin_coordenadas': sorted(datos['sin_coordenadas'].values()),
     }
