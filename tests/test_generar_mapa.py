@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from generar_mapa import armar_datos, generar, render_pagina  # noqa: E402
+from generar_mapa import armar_datos, generar, modo_gratis, render_pagina  # noqa: E402
 
 HOY = date(2026, 11, 21)
 
@@ -142,6 +142,67 @@ class ZonasTests(unittest.TestCase):
         zona = render_pagina(self.datos, HOY, zona='casco')
         self.assertIn('href="/mapa/">Todo Gran La Plata', zona)
         self.assertIn('href="/mapa/casco/" aria-current="page"', zona)
+
+
+class GratisTests(unittest.TestCase):
+    def test_modo_gratis_por_texto(self):
+        self.assertEqual(modo_gratis(ev('Feria gratis', '', 'x')), 'gratis')
+        self.assertEqual(modo_gratis(ev('Recital', '', 'x', sinopsis='Entrada libre y gratuita')), 'gratis')
+        self.assertEqual(modo_gratis(ev('Impro', '', 'x', descripcion='Show a la gorra')), 'gorra')
+        self.assertEqual(modo_gratis(ev('Obra', '', 'x', precio_texto='$8000')), '')
+        self.assertEqual(modo_gratis(ev('Gratitud', '', 'x')), '')  # palabra entera
+
+    def test_filtro_solo_si_hay_gratis(self):
+        datos = armar_datos(EVENTOS, HOY)
+        self.assertNotIn('Gratis (confirmados)', render_pagina(datos, HOY))
+        con = EVENTOS + [ev('Feria gratis', '2026-11-22 11:00:00', 'Casa Hereje', 'ferias')]
+        html = render_pagina(armar_datos(con, HOY), HOY)
+        self.assertIn('data-gratis-filtro=""', html)
+        self.assertIn('>Gratis (confirmados)</button>', html)
+        self.assertIn('data-gratis="gratis"', html)
+        self.assertIn('"g":"gratis"', html)
+
+
+class DeLaCasaTests(unittest.TestCase):
+    def setUp(self):
+        self.datos = armar_datos(EVENTOS, HOY)
+        self.html = render_pagina(self.datos, HOY)
+
+    def aviso(self, html):
+        m = re.search(r'<aside class="mapa-casa".*?</aside>', html, re.S)
+        self.assertIsNotNone(m)
+        return m.group(0)
+
+    def test_aviso_con_un_solo_link_y_la_marca(self):
+        aviso = self.aviso(self.html)
+        self.assertIn('De la casa', aviso)
+        links = re.findall(r'<a [^>]*>(.*?)</a>', aviso)
+        self.assertEqual(links, ['Tres Empanadas'])
+        self.assertNotIn('stand up en La Plata', aviso.lower())
+        self.assertIn('utm_source=movete', aviso)
+
+    def test_aviso_tambien_en_las_zonas(self):
+        # Aunque la zona no tenga a Tres Empanadas, el aviso sale con su fecha.
+        aviso = self.aviso(render_pagina(self.datos, HOY, zona='city-bell'))
+        self.assertIn('Tres Empanadas', aviso)
+        self.assertNotIn('Ver próximas fechas', aviso)
+
+    def test_sin_fechas_dice_ver_proximas(self):
+        sin_te = [e for e in EVENTOS if e['lugar'] != 'Tres Empanadas Comedia']
+        aviso = self.aviso(render_pagina(armar_datos(sin_te, HOY), HOY))
+        self.assertIn('Ver próximas fechas', aviso)
+
+    def test_pin_de_la_casa_y_el_resto_igual(self):
+        salas = self.datos['salas']
+        self.assertTrue(salas['tres-empanadas-comedia']['casa'])
+        self.assertFalse(any(s['casa'] for k, s in salas.items() if k != 'tres-empanadas-comedia'))
+
+    def test_misma_coordenada_un_solo_pin(self):
+        # Sociedad Platense de Stand Up es en Tres Empanadas: comparten pin.
+        con = EVENTOS + [ev('Otra función', '2026-11-22 21:30:00', 'Sociedad Platense de Stand Up', 'stand-up')]
+        datos = armar_datos(con, HOY)
+        otra = next(e for e in datos['eventos'] if e['titulo'] == 'Otra función')
+        self.assertEqual(otra['sala'], 'tres-empanadas-comedia')
 
 
 class GenerarTests(unittest.TestCase):

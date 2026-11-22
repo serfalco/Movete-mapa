@@ -20,6 +20,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 from datetime import date, datetime, time, timedelta
@@ -43,11 +44,18 @@ from generar_edicion import (  # noqa: E402
     evento_titulo,
     evento_url,
     hoy_argentina,
+    _precio,
     normalizar_categorias,
     obra_slug,
     parse_fecha,
 )
-from venues import venue_canonico, venue_info, venue_slug  # noqa: E402
+from venues import (  # noqa: E402
+    VENUES_DIRECCIONES,
+    _normalizar,
+    venue_canonico,
+    venue_info,
+    venue_slug,
+)
 
 from puntos_partida import PUNTOS_PARTIDA  # noqa: E402
 from zonas import ZONAS, zonas_de  # noqa: E402
@@ -62,6 +70,39 @@ ORDEN_RUBROS = [c for c in CATEGORY_ORDER if c != 'otros'] + ['cine', 'otros']
 
 # Lugares que no son una sala: no se le pide a Tres una coordenada para ellos.
 LUGARES_GENERICOS = {'la-plata', 'gran-la-plata', 'a-confirmar', 'online', 'virtual'}
+
+
+# Tres Empanadas: pin con borde dorado y el aviso "De la casa". El resto del
+# mapa queda neutral: su pin y sus eventos se ordenan y filtran como cualquiera.
+SALAS_DE_LA_CASA = {'tres-empanadas-comedia'}
+AVISO_URL = 'https://tresempanadas.com.ar/reservas/?utm_source=movete&utm_medium=mapa&utm_campaign=aviso'
+
+# "Gratis (confirmados)": solo lo que lo dice con todas las letras. Que falten
+# algunos no importa; que aparezca uno que no lo es, sí.
+_GRATIS = re.compile(r'\b(gratis|gratuit[oa]s?|entrada (libre|liberada)|sin costo|no arancelad[oa]s?)\b')
+_GORRA = re.compile(r'\ba la gorra\b')
+
+
+def modo_gratis(ev: dict) -> str:
+    """'gorra', 'gratis' o '' según el texto del evento (o un precio 0 de la fuente)."""
+    texto = _normalizar(' '.join(str(ev.get(k) or '') for k in
+                                 ('titulo', 'title', 'sinopsis', 'descripcion', 'precio_texto')))
+    if _GORRA.search(texto):
+        return 'gorra'
+    if _GRATIS.search(texto) or _precio(ev) == 0:
+        return 'gratis'
+    return ''
+
+
+def pines_por_coordenada() -> dict[tuple[float, float], tuple[str, dict]]:
+    """Para cada coordenada, la sala del catálogo que da nombre al pin (la
+    primera en VENUES_DIRECCIONES)."""
+    pines: dict[tuple[float, float], tuple[str, dict]] = {}
+    for nombre, *_resto in VENUES_DIRECCIONES.values():
+        vc = venue_canonico(nombre)
+        if vc and vc['lat'] is not None:
+            pines.setdefault((vc['lat'], vc['lng']), (vc['slug'], vc))
+    return pines
 
 
 def _hora(f: datetime, sin_hora: bool) -> str:
@@ -81,6 +122,7 @@ def armar_datos(eventos: list[dict], hoy: date, dias: int = DIAS_VENTANA) -> dic
 
     desde = datetime.combine(hoy, time.min)
     hasta = desde + timedelta(days=dias)
+    pines = pines_por_coordenada()
     salas: dict[str, dict] = {}
     sin_coordenadas: dict[str, str] = {}
     items: list[dict] = []
@@ -104,13 +146,16 @@ def armar_datos(eventos: list[dict], hoy: date, dias: int = DIAS_VENTANA) -> dic
 
         sala = None
         if vc and vc['lat'] is not None:
-            sala = vc['slug']
+            # Dos nombres en el mismo lugar (Teatro Metro y Casa Metro; Tres
+            # Empanadas y su show de los viernes) van en un solo pin.
+            sala, pin = pines.get((vc['lat'], vc['lng']), (vc['slug'], vc))
             salas.setdefault(sala, {
-                'nombre': vc['nombre'],
-                'direccion': vc['direccion'],
+                'nombre': pin['nombre'],
+                'direccion': pin['direccion'],
                 'lat': vc['lat'],
                 'lng': vc['lng'],
-                'url': f"/en-vivo/sala/{vc['slug']}/",
+                'url': f"/en-vivo/sala/{sala}/",
+                'casa': sala in SALAS_DE_LA_CASA,
             })
         elif lugar.strip() and venue_slug(lugar) not in LUGARES_GENERICOS:
             clave = vc['slug'] if vc else venue_slug(lugar)
@@ -137,6 +182,7 @@ def armar_datos(eventos: list[dict], hoy: date, dias: int = DIAS_VENTANA) -> dic
             'link': f'/en-vivo/obra/{oslug}/' if oslug else evento_url(ev),
             'entradas': evento_url(ev) if oslug else '',
             'zonas': zonas_de(vc['slug'] if vc else None, direccion),
+            'gratis': modo_gratis(ev),
         })
 
     items.sort(key=lambda e: (e['f'], e['titulo'].casefold()))
@@ -183,13 +229,17 @@ def render_item(item: dict, salas: dict) -> str:
                        f' aria-label="Cómo llegar a {lugar} en Google Maps">'
                        '<img src="/assets/icons/google-maps.svg" alt="" width="18" height="18"> Cómo llegar</a>')
     sin_pin = '' if item['sala'] else '\n        <p class="mapa-sin-pin">Sin ubicación en el mapa todavía</p>'
+    gratis_html = ''
+    if item['gratis']:
+        gratis_html = ('\n          <p class="pill mapa-gratis">'
+                       + ('A la gorra' if item['gratis'] == 'gorra' else 'Gratis') + '</p>')
     return f"""
       <li class="event-card mapa-item" id="{item['id']}" data-category="{esc(cat)}"
           data-inicio="{item['inicio']}" data-sin-hora="{'1' if item['sin_hora'] else ''}"
-          data-sala="{esc(item['sala'] or '')}">
+          data-sala="{esc(item['sala'] or '')}" data-gratis="{esc(item['gratis'])}">
         <div class="event-card-topline">
           <p class="event-date">{f.day} {MESES_ABR[f.month]}</p>
-          <p class="pill">{esc(cat_label(cat))}</p>
+          <p class="pill">{esc(cat_label(cat))}</p>{gratis_html}
           <p class="mapa-dist" hidden></p>
         </div>
         <h3>{titulo_html}</h3>
@@ -200,17 +250,19 @@ def render_item(item: dict, salas: dict) -> str:
       </li>"""
 
 
-def datos_cliente(datos: dict, centro: tuple[float, float] | None = None) -> str:
+def datos_cliente(datos: dict, centro: tuple[float, float] | None = None,
+                  casa: dict | None = None) -> str:
     """JSON que lee mapa.js. Seguro para ir dentro de <script>."""
-    eventos = [{
-        'id': it['id'],
-        't': it['titulo'],
-        'i': it['inicio'],
-        'sh': it['sin_hora'],
-        'c': it['cat'],
-        's': it['sala'],
-        'u': it['link'],
-    } for it in datos['eventos']]
+    eventos = []
+    for it in datos['eventos']:
+        e = {'id': it['id'], 't': it['titulo'], 'i': it['inicio'], 'sh': it['sin_hora'],
+             'c': it['cat'], 's': it['sala'], 'u': it['link']}
+        if it['gratis']:
+            e['g'] = it['gratis']
+        pin = datos['salas'].get(it['sala']) if it['sala'] else None
+        if pin and it['lugar'] and it['lugar'] != pin['nombre']:
+            e['l'] = it['lugar']   # otro nombre en el mismo pin (Casa Metro en Teatro Metro)
+        eventos.append(e)
     rubros = {c: cat_label(c) for c in ORDEN_RUBROS}
     payload = {
         'eventos': eventos,
@@ -220,6 +272,8 @@ def datos_cliente(datos: dict, centro: tuple[float, float] | None = None) -> str
     }
     if centro:
         payload['centro'] = {'lat': centro[0], 'lng': centro[1]}
+    if casa:
+        payload['casa'] = casa
     return json.dumps(payload, ensure_ascii=False, separators=(',', ':')).replace('<', '\\u003c')
 
 
@@ -232,6 +286,44 @@ def render_rubros(datos: dict) -> str:
                            f'aria-pressed="false" style="--cat: var(--c-{esc(c)}, var(--c-otros))">'
                            f'{esc(cat_label(c))}</button>')
     return '\n          '.join(botones)
+
+
+def datos_casa(datos: dict) -> dict | None:
+    """Lo que necesita el aviso de Tres Empanadas: dónde queda y sus próximas
+    fechas reales (las que trae la cartelera, nada inventado)."""
+    vc = venue_canonico('Tres Empanadas Comedia')
+    if not vc or vc['lat'] is None:
+        return None
+    proximas = [{'i': it['inicio'], 'sh': it['sin_hora']}
+                for it in datos['eventos'] if it['sala'] in SALAS_DE_LA_CASA]
+    return {'nombre': 'Tres Empanadas', 'url': AVISO_URL,
+            'lat': vc['lat'], 'lng': vc['lng'], 'proximas': proximas}
+
+
+def render_aviso(casa: dict | None, datos: dict) -> str:
+    """Aviso fijo abajo. Un solo link y con la marca como texto: MoVeTe no
+    compite con Tres Empanadas en búsquedas genéricas. mapa.js actualiza la
+    fecha (saca las que ya pasaron) y suma la distancia si hay ubicación."""
+    if not casa:
+        return ''
+    proximo = next((it for it in datos['eventos'] if it['sala'] in SALAS_DE_LA_CASA), None)
+    if proximo:
+        f = proximo['f']
+        cuando = DIAS[f.weekday()][:3].lower() + ('' if proximo['sin_hora'] else ' ' + f.strftime('%H:%M'))
+    else:
+        cuando = 'Ver próximas fechas'
+    return f"""<aside class="mapa-casa" aria-label="De la casa">
+    <span class="mapa-casa-etiqueta">De la casa</span>
+    <span class="mapa-casa-texto"><a href="{esc(casa['url'])}">{esc(casa['nombre'])}</a> · <span class="mapa-casa-cuando">{esc(cuando)}</span><span class="mapa-casa-dist"></span></span>
+  </aside>"""
+
+
+def render_gratis(datos: dict) -> str:
+    """Filtro "Gratis (confirmados)": solo si esta semana hay alguno."""
+    if not any(it['gratis'] for it in datos['eventos']):
+        return ''
+    return ('<button type="button" class="mapa-chip mapa-chip-gratis" data-gratis-filtro="" '
+            'aria-pressed="false">Gratis (confirmados)</button>')
 
 
 def render_puntos() -> str:
@@ -277,6 +369,9 @@ def render_zonas(cuentas: dict[str, int], actual: str | None) -> str:
 def render_pagina(datos: dict, hoy: date, zona: str | None = None,
                   cuentas: dict[str, int] | None = None) -> str:
     cuentas = cuentas if cuentas is not None else cuentas_por_zona(datos)
+    # El aviso va en todas las páginas, también en las zonas donde TE no está.
+    casa = datos_casa(datos)
+    aviso = render_aviso(casa, datos)
     centro = None
     if zona:
         _z, nombre_zona, punto = next(z for z in ZONAS if z[0] == zona)
@@ -322,7 +417,9 @@ def render_pagina(datos: dict, hoy: date, zona: str | None = None,
         puntos=render_puntos(),
         lista=lista,
         zonas=render_zonas(cuentas, zona),
-        datos=datos_cliente(datos, centro),
+        gratis=render_gratis(datos),
+        aviso=aviso,
+        datos=datos_cliente(datos, centro, casa),
         anio=hoy.year,
         v_css=_version(AQUI / 'static' / 'mapa.css'),
         v_js=_version(AQUI / 'static' / 'mapa.js'),

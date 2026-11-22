@@ -52,12 +52,14 @@
         <button type="button" class="mapa-chip" data-franja="" aria-pressed="true">A cualquier hora</button>
         <button type="button" class="mapa-chip" data-franja="tarde" aria-pressed="false">Tarde</button>
         <button type="button" class="mapa-chip" data-franja="noche" aria-pressed="false">Noche</button>
+        $gratis
       </div>
       <div class="mapa-fila mapa-rubros" role="group" aria-label="Rubro">
           $rubros
       </div>
       <div class="mapa-ubicacion">
         <button type="button" class="button small mapa-geo">Usar mi ubicación</button>
+        <button type="button" class="button small secondary mapa-sorprendeme">Sorprendeme</button>
         <label class="mapa-partida">o salí desde
           <select class="mapa-punto" aria-label="Punto de partida">
             <option value="">elegí un lugar</option>
@@ -76,6 +78,12 @@
       </div>
 
       <section class="mapa-panel" aria-labelledby="mapa-lista-titulo">
+        <section class="mapa-sorpresa" hidden aria-live="polite" aria-labelledby="mapa-sorpresa-titulo">
+          <h2 id="mapa-sorpresa-titulo">Te toca</h2>
+          <div class="mapa-sorpresa-cuerpo"></div>
+          <button type="button" class="mapa-chip mapa-sorpresa-otra">Otro</button>
+        </section>
+
         <section class="mapa-cerca" hidden aria-labelledby="mapa-cerca-titulo">
           <h2 id="mapa-cerca-titulo">Cerca tuyo ahora</h2>
           <ol class="mapa-cerca-lista"></ol>
@@ -105,6 +113,8 @@
 
     <p class="site-notice">La info puede cambiar. Confirmá horarios y disponibilidad con cada sala o espacio.</p>
   </main>
+
+  $aviso
 
   <footer class="site-footer">
     <p class="footer-line">

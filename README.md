@@ -45,7 +45,19 @@ y hay que pedirle las coordenadas a Tres.
   que hay ahí, y un numerito si hay más de un show. El pin late si algo empieza
   en las próximas 2 horas. Lo que ya terminó se saca: sin hora de fin, un show
   se da por terminado a las 2 horas de empezar.
-- **Filtros:** hoy, esta noche, finde o semana; tarde o noche; rubro.
+- **Filtros:** hoy, esta noche, finde o semana; tarde o noche; rubro; y
+  "Gratis (confirmados)", que solo aparece si algún evento lo es. Se detecta
+  del texto del evento ("gratis", "entrada libre", "a la gorra"…) o de un
+  precio 0 de la fuente. No se le pide nada nuevo a quien carga en `/sumar/`.
+- **Sorprendeme:** elige al azar un show que empiece pronto (en 3 horas; si
+  no hay, en 8 o en 48) y, con ubicación, a menos de 25 cuadras. Respeta los
+  filtros de rubro y gratis.
+- **De la casa:** Tres Empanadas lleva el pin con borde dorado y una estrella,
+  y abajo hay un aviso fijo con su próxima fecha real y, con ubicación, la
+  distancia. Tiene un solo link, con la marca como texto. Si no hay fechas,
+  dice "Ver próximas fechas". El resto del mapa no se toca: ninguna otra sala
+  se oculta ni se reordena. Una sala con la misma coordenada que otra comparte
+  su pin.
 - **Ubicación:** se calcula todo en el teléfono, y la página lo dice. Muestra
   "Cerca tuyo ahora" (lo que empieza en las próximas 3 horas, por distancia) y
   la distancia de cada evento en cuadras (120 m, de esquina a esquina). Si el

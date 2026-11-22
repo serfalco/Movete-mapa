@@ -257,3 +257,94 @@
 .mapa-zonas a span { font-size: .8rem; color: var(--muted); }
 .mapa-zonas a[aria-current="page"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .mapa-zonas a[aria-current="page"] span { color: inherit; opacity: .75; }
+
+/* --- Gratis (confirmados) ---------------------------------------------------------- */
+.mapa-chip-gratis { border-color: color-mix(in srgb, var(--accent2) 70%, var(--line-strong)); }
+.mapa-chip-gratis[aria-pressed="true"] { background: var(--accent2); border-color: var(--accent2); color: #1a1611; }
+.pill.mapa-gratis {
+  background: color-mix(in srgb, var(--accent2) 30%, transparent);
+  border-color: color-mix(in srgb, var(--accent2) 70%, transparent);
+  color: var(--ink);
+}
+.mapa-pop-lugar { color: var(--muted); font-size: .82rem; }
+.mapa-pop-gratis {
+  font-size: .72rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent2) 35%, transparent);
+  white-space: nowrap;
+}
+
+/* --- Sorprendeme --------------------------------------------------------------------- */
+.mapa-sorprendeme { cursor: pointer; }
+.mapa-sorpresa {
+  margin-bottom: 18px;
+  padding: 14px;
+  border-radius: var(--radius);
+  border: 2px dashed color-mix(in srgb, var(--accent) 60%, transparent);
+  background: var(--card);
+}
+.mapa-sorpresa[hidden] { display: none; }
+.mapa-sorpresa h2 { margin: 0 0 8px; font-size: 1.2rem; }
+.mapa-sorpresa-titulo { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; font-size: 1.05rem; }
+.mapa-sorpresa-meta { margin: 0 0 10px; color: var(--muted); font-size: .9rem; }
+.mapa-sorpresa-vacio { margin: 0 0 10px; color: var(--muted); }
+.mapa-sorpresa-otra { margin-left: 8px; }
+
+/* --- Pin y aviso de Tres Empanadas ("De la casa") ---------------------------------------- */
+.mapa-pin--casa { border-color: #d4a017; box-shadow: 0 0 0 2px #d4a017, 0 2px 6px rgba(0, 0, 0, .35); }
+.mapa-pin-casa {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #d4a017;
+  color: #1a1611;
+  font: 700 11px/18px var(--font-body);
+  font-style: normal;
+  text-align: center;
+  border: 1.5px solid #fff;
+}
+
+.pagina-mapa { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+.mapa-casa {
+  position: fixed;
+  left: 50%;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 9px 14px 9px 10px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  border: 2px solid #d4a017;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .3);
+  font-size: .92rem;
+  line-height: 1.25;
+}
+.mapa-casa-etiqueta {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #d4a017;
+  color: #1a1611;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+.mapa-casa-texto { min-width: 0; }
+.mapa-casa-cuando, .mapa-casa-dist { white-space: nowrap; }
+@media (max-width: 480px) {
+  .mapa-casa { border-radius: 18px; width: calc(100% - 24px); }
+}
+.mapa-casa a { color: var(--paper); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+.mapa-casa a:focus-visible { outline: 3px solid #d4a017; outline-offset: 2px; }

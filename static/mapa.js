@@ -72,13 +72,13 @@
     var r = relojAR(inicio);
     var fin = e.sh ? aHora(e.i.slice(0, 10) + 'T23:59') : new Date(inicio.getTime() + DURACION);
     return {
-      id: e.id, titulo: e.t, cat: e.c, sala: e.s, url: e.u, sinHora: e.sh,
+      id: e.id, titulo: e.t, cat: e.c, sala: e.s, url: e.u, sinHora: e.sh, gratis: e.g || '', lugar: e.l || '',
       inicio: inicio, fin: fin, dia: diaClave(r), hora: r.h, wd: r.wd, hhmm: e.i.slice(11, 16),
       li: document.getElementById(e.id)
     };
   }).filter(function (e) { return e.li; });
 
-  var estado = { cuando: 'semana', franja: '', rubro: '', orden: 'hora', origen: null };
+  var estado = { cuando: 'semana', franja: '', rubro: '', gratis: false, orden: 'hora', origen: null };
 
   function vigente(e) { return e.fin > ahora; }
   function pasaCuando(e) {
@@ -95,8 +95,12 @@
     return estado.franja === 'tarde' ? e.hora < 19 : e.hora >= 19;
   }
   function pasaRubro(e) { return !estado.rubro || e.cat === estado.rubro; }
+  // "Gratis (confirmados)": solo los que lo dicen (gratis, entrada libre, a la gorra).
+  function pasaGratis(e) { return !estado.gratis || !!e.gratis; }
   function visibles() {
-    return eventos.filter(function (e) { return vigente(e) && pasaCuando(e) && pasaFranja(e) && pasaRubro(e); });
+    return eventos.filter(function (e) {
+      return vigente(e) && pasaCuando(e) && pasaFranja(e) && pasaRubro(e) && pasaGratis(e);
+    });
   }
 
   // Por default, "Hoy" si queda algo hoy; si no, la semana.
@@ -127,6 +131,8 @@
   }
   function cuandoCorto(e) {
     var dia = e.dia === claveHoy ? 'hoy' : e.dia === claveManana ? 'mañana' : DIAS[e.wd];
+    // A una semana o más, el día solo confunde ("sáb" puede ser hoy): va con el número.
+    if (e.inicio - Date.now() > 6 * 864e5) dia += ' ' + (e.dia % 100);
     return e.sinHora ? dia : dia + ' ' + e.hhmm;
   }
 
@@ -163,7 +169,9 @@
     var filas = lista.slice(0, 5).map(function (e) {
       var t = e.url ? '<a href="' + escapar(e.url) + '"' + (/^http/.test(e.url) ? ' target="_blank" rel="noopener"' : '') + '>' +
         escapar(e.titulo) + '</a>' : escapar(e.titulo);
-      return '<li><span class="mapa-pop-hora">' + escapar(cuandoCorto(e)) + '</span> ' + t + '</li>';
+      var extra = (e.lugar ? ' <span class="mapa-pop-lugar">en ' + escapar(e.lugar) + '</span>' : '') +
+        (e.gratis ? ' <span class="mapa-pop-gratis">' + (e.gratis === 'gorra' ? 'a la gorra' : 'gratis') + '</span>' : '');
+      return '<li><span class="mapa-pop-hora">' + escapar(cuandoCorto(e)) + '</span> ' + t + extra + '</li>';
     }).join('');
     var mas = lista.length > 5 ? '<p class="mapa-pop-mas">y ' + (lista.length - 5) + ' más en la lista</p>' : '';
     var d = distanciaSala(slug);
@@ -190,9 +198,10 @@
       var proximo = evs[0];
       var pronto = evs.some(function (e) { return !e.sinHora && e.inicio > ahora && e.inicio - ahora <= PRONTO; });
       var s = DATOS.salas[slug];
-      var html = '<span class="mapa-pin' + (pronto ? ' mapa-pin--pronto' : '') + '" ' +
+      var html = '<span class="mapa-pin' + (pronto ? ' mapa-pin--pronto' : '') + (s.casa ? ' mapa-pin--casa' : '') + '" ' +
         'style="--cat: var(--c-' + escapar(proximo.cat) + ', var(--c-otros))">' + icono(proximo.cat) +
-        (evs.length > 1 ? '<b class="mapa-pin-n">' + evs.length + '</b>' : '') + '</span>';
+        (evs.length > 1 ? '<b class="mapa-pin-n">' + evs.length + '</b>' : '') +
+        (s.casa ? '<i class="mapa-pin-casa" aria-hidden="true">★</i>' : '') + '</span>';
       var m = L.marker([s.lat, s.lng], {
         icon: L.divIcon({ className: 'mapa-pin-wrap', html: html, iconSize: [38, 38], iconAnchor: [19, 19], popupAnchor: [0, -18] }),
         title: s.nombre + ' · ' + evs.length + (evs.length === 1 ? ' evento' : ' eventos'),
@@ -278,7 +287,89 @@
     actualizarLista(lista);
     dibujarPines(lista);
     actualizarCerca();
+    actualizarAviso();
     document.querySelector('.mapa-orden').hidden = !estado.origen;
+  }
+
+  // --- Aviso de Tres Empanadas ("De la casa") ----------------------------------
+  // Próxima fecha real y, si hay ubicación, a cuántas cuadras. Sin fecha
+  // próxima: "Ver próximas fechas". Un solo link, el de la marca.
+  function actualizarAviso() {
+    var casa = DATOS.casa;
+    var cuandoEl = document.querySelector('.mapa-casa-cuando');
+    var distEl = document.querySelector('.mapa-casa-dist');
+    if (!casa || !cuandoEl) return;
+    var proxima = casa.proximas.map(function (p) {
+      var inicio = aHora(p.i);
+      var r = relojAR(inicio);
+      return {
+        inicio: inicio, sinHora: p.sh, dia: diaClave(r), wd: r.wd, hhmm: p.i.slice(11, 16),
+        fin: p.sh ? aHora(p.i.slice(0, 10) + 'T23:59') : new Date(inicio.getTime() + DURACION)
+      };
+    }).filter(vigente).sort(function (a, b) { return a.inicio - b.inicio; })[0];
+    cuandoEl.textContent = proxima ? cuandoCorto(proxima) : 'Ver próximas fechas';
+    var d = estado.origen ? metros(estado.origen, casa) : null;
+    distEl.textContent = d == null ? '' : ' · ' + textoDistancia(d);
+  }
+
+  // --- Sorprendeme ------------------------------------------------------------
+  // Un show al azar que empieza pronto y queda cerca. Respeta rubro y gratis,
+  // no el día: la idea es salir ahora.
+  var sorpresaEl = document.querySelector('.mapa-sorpresa');
+  var sorpresaCuerpo = document.querySelector('.mapa-sorpresa-cuerpo');
+  var ultimaSorpresa = null;
+  var CUADRAS_CERCA = 25;
+
+  function candidatosSorpresa() {
+    var base = eventos.filter(function (e) {
+      return e.sala && DATOS.salas[e.sala] && !e.sinHora && e.inicio > ahora && pasaRubro(e) && pasaGratis(e);
+    });
+    var ventanas = [VENTANA_CERCA, 8 * HORA, 48 * HORA];   // pronto; si no, esta noche; si no, mañana
+    for (var i = 0; i < ventanas.length; i++) {
+      var pronto = base.filter(function (e) { return e.inicio - ahora <= ventanas[i]; });
+      if (estado.origen) {
+        var cerca = pronto.filter(function (e) { return distanciaSala(e.sala) <= CUADRAS_CERCA * METROS_CUADRA; });
+        if (cerca.length) return cerca;
+      }
+      if (pronto.length) return pronto;
+    }
+    return [];
+  }
+
+  function sorprender() {
+    var lista = candidatosSorpresa();
+    if (lista.length > 1 && ultimaSorpresa) {
+      lista = lista.filter(function (e) { return e.id !== ultimaSorpresa; });
+    }
+    sorpresaEl.hidden = false;
+    if (!lista.length) {
+      ultimaSorpresa = null;
+      sorpresaCuerpo.innerHTML = '<p class="mapa-sorpresa-vacio">No encontramos nada que empiece pronto. Probá con el finde.</p>';
+      sorpresaEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return;
+    }
+    var e = lista[Math.floor(Math.random() * lista.length)];
+    ultimaSorpresa = e.id;
+    var s = DATOS.salas[e.sala];
+    var d = distanciaSala(e.sala);
+    var t = e.url ? '<a href="' + escapar(e.url) + '"' + (/^http/.test(e.url) ? ' target="_blank" rel="noopener"' : '') + '>' +
+      escapar(e.titulo) + '</a>' : escapar(e.titulo);
+    sorpresaCuerpo.innerHTML =
+      '<p class="mapa-sorpresa-titulo" style="--cat: var(--c-' + escapar(e.cat) + ', var(--c-otros))">' +
+      '<span class="mapa-cerca-icono">' + icono(e.cat) + '</span><strong>' + t + '</strong></p>' +
+      '<p class="mapa-sorpresa-meta">' + escapar(cuandoCorto(e)) + ' · ' + escapar(e.lugar || s.nombre) +
+      (d != null ? ' · ' + escapar(textoDistancia(d)) : '') + '</p>' +
+      '<a class="mapa-llegar" href="' + linkLlegar(s) + '" target="_blank" rel="noopener">Cómo llegar</a>';
+    verSala(e.sala, false);
+    sorpresaEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function verSala(slug, desplazar) {
+    var m = marcadores[slug];
+    if (!m || !mapa) return;
+    if (desplazar) document.getElementById('mapa').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    mapa.setView(m.getLatLng(), Math.max(mapa.getZoom(), 16));
+    m.openPopup();
   }
 
   // --- Controles ------------------------------------------------------------
@@ -339,13 +430,20 @@
 
   listaEl.addEventListener('click', function (ev) {
     var b = ev.target.closest('.mapa-ver');
-    if (!b || !mapa) return;
-    var m = marcadores[b.getAttribute('data-ver')];
-    if (!m) return;
-    document.getElementById('mapa').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    mapa.setView(m.getLatLng(), Math.max(mapa.getZoom(), 16));
-    m.openPopup();
+    if (b) verSala(b.getAttribute('data-ver'), true);
   });
+
+  var chipGratis = document.querySelector('[data-gratis-filtro]');
+  if (chipGratis) {
+    chipGratis.addEventListener('click', function () {
+      estado.gratis = !estado.gratis;
+      chipGratis.setAttribute('aria-pressed', estado.gratis ? 'true' : 'false');
+      aplicar();
+    });
+  }
+
+  document.querySelector('.mapa-sorprendeme').addEventListener('click', sorprender);
+  document.querySelector('.mapa-sorpresa-otra').addEventListener('click', sorprender);
 
   marcarGrupo('cuando', estado.cuando);
   iniciarMapa();
