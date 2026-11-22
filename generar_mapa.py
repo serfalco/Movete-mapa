@@ -36,6 +36,7 @@ sys.path.insert(0, str(ESPECTACULOS))
 from edicion import DIAS, MESES_ABR  # noqa: E402
 from generar_edicion import (  # noqa: E402
     _ALIAS_OBRA,
+    agregar_evento_fijo_stand_up,
     CATEGORY_ORDER,
     calcular_alias_obras,
     cargar_eventos,
@@ -74,7 +75,7 @@ ORDEN_RUBROS = [c for c in CATEGORY_ORDER if c != 'otros'] + ['cine', 'otros']
 LUGARES_GENERICOS = {'la-plata', 'gran-la-plata', 'a-confirmar', 'online', 'virtual'}
 
 
-# Tres Empanadas: pin con borde dorado y el aviso "De la casa". El resto del
+# Tres Empanadas: pin con borde dorado y el aviso "Stand Up en Tres Empanadas". El resto del
 # mapa queda neutral: su pin y sus eventos se ordenan y filtran como cualquiera.
 SALAS_DE_LA_CASA = {'tres-empanadas-comedia'}
 AVISO_URL = 'https://tresempanadas.com.ar/reservas/?utm_source=movete&utm_medium=mapa&utm_campaign=aviso'
@@ -178,6 +179,13 @@ def armar_datos(eventos: list[dict], hoy: date, dias: int = DIAS_VENTANA) -> dic
     igual en la lista. Esas salas quedan en 'sin_coordenadas' para pedírselas
     a Tres.
     """
+    # Tres Empanadas abre todos los viernes: el show fijo entra cada viernes de
+    # la ventana, como en En Vivo (si una fuente ya lo trae, no se repite). Los
+    # jueves abre algunos nomás: esos salen solo si vienen en la cartelera.
+    for d in range(dias):
+        dia = hoy + timedelta(days=d)
+        if dia.weekday() == 4:
+            eventos = agregar_evento_fijo_stand_up(eventos, dia)
     eventos = normalizar_categorias(eventos)
     _ALIAS_OBRA.clear()
     _ALIAS_OBRA.update(calcular_alias_obras(eventos))
@@ -383,9 +391,8 @@ def render_aviso(casa: dict | None, datos: dict) -> str:
         cuando = DIAS[f.weekday()][:3].lower() + ('' if proximo['sin_hora'] else ' ' + f.strftime('%H:%M'))
     else:
         cuando = 'Ver próximas fechas'
-    return f"""<aside class="mapa-casa" aria-label="De la casa">
-    <span class="mapa-casa-etiqueta">De la casa</span>
-    <span class="mapa-casa-texto"><a href="{esc(casa['url'])}">{esc(casa['nombre'])}</a> · <span class="mapa-casa-cuando">{esc(cuando)}</span><span class="mapa-casa-dist"></span></span>
+    return f"""<aside class="mapa-casa" aria-label="Stand Up en Tres Empanadas">
+    <span class="mapa-casa-texto">Stand Up en <a href="{esc(casa['url'])}">{esc(casa['nombre'])}</a> · <span class="mapa-casa-cuando">{esc(cuando)}</span><span class="mapa-casa-dist"></span></span>
   </aside>"""
 
 

@@ -3,7 +3,7 @@ import re
 import sys
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -184,7 +184,8 @@ class DeLaCasaTests(unittest.TestCase):
 
     def test_aviso_con_un_solo_link_y_la_marca(self):
         aviso = self.aviso(self.html)
-        self.assertIn('De la casa', aviso)
+        self.assertIn('Stand Up en <a', aviso)
+        self.assertNotIn('De la casa', aviso)
         links = re.findall(r'<a [^>]*>(.*?)</a>', aviso)
         self.assertEqual(links, ['Tres Empanadas'])
         self.assertNotIn('stand up en La Plata', aviso.lower())
@@ -196,10 +197,30 @@ class DeLaCasaTests(unittest.TestCase):
         self.assertIn('Tres Empanadas', aviso)
         self.assertNotIn('Ver próximas fechas', aviso)
 
-    def test_sin_fechas_dice_ver_proximas(self):
+    def test_viernes_fijo_aunque_la_cartelera_no_lo_traiga(self):
+        # TE abre todos los viernes: sin fechas en la cartelera, el aviso
+        # igual muestra el viernes a las 21:30.
         sin_te = [e for e in EVENTOS if e['lugar'] != 'Tres Empanadas Comedia']
-        aviso = self.aviso(render_pagina(armar_datos(sin_te, HOY), HOY))
-        self.assertIn('Ver próximas fechas', aviso)
+        datos = armar_datos(sin_te, HOY)
+        te = [e for e in datos['eventos'] if e['sala'] == 'tres-empanadas-comedia']
+        self.assertTrue(te)
+        self.assertTrue(all(e['f'].weekday() == 4 and e['inicio'].endswith('21:30') for e in te))
+        aviso = self.aviso(render_pagina(datos, HOY))
+        self.assertIn('vie 21:30', aviso)
+        self.assertNotIn('Ver próximas fechas', aviso)
+
+    def test_cada_viernes_una_vez_y_jueves_solo_si_viene(self):
+        datos = armar_datos(EVENTOS, HOY)
+        te = [e for e in datos['eventos'] if e['sala'] == 'tres-empanadas-comedia']
+        viernes = [e['f'].date() for e in te if e['f'].weekday() == 4]
+        self.assertEqual(len(viernes), len(set(viernes)))
+        dias = {HOY + timedelta(days=d) for d in range(8)}
+        self.assertEqual(set(viernes), {d for d in dias if d.weekday() == 4})
+        self.assertFalse(any(e['f'].weekday() == 3 for e in te))
+        jueves = next(d for d in sorted(dias) if d.weekday() == 3)
+        con = EVENTOS + [ev('Stand up de jueves', f'{jueves} 21:00:00', 'Tres Empanadas Comedia', 'stand-up')]
+        te = [e for e in armar_datos(con, HOY)['eventos'] if e['sala'] == 'tres-empanadas-comedia']
+        self.assertTrue(any(e['f'].weekday() == 3 for e in te))
 
     def test_pin_de_la_casa_y_el_resto_igual(self):
         salas = self.datos['salas']

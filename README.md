@@ -52,10 +52,13 @@ y hay que pedirle las coordenadas a Tres.
 - **Sorprendeme:** elige al azar un show que empiece pronto (en 3 horas; si
   no hay, en 8 o en 48) y, con ubicación, a menos de 25 cuadras. Respeta los
   filtros de rubro y gratis.
-- **De la casa:** Tres Empanadas lleva el pin con borde dorado y una estrella,
-  y abajo hay un aviso fijo con su próxima fecha real y, con ubicación, la
-  distancia. Tiene un solo link, con la marca como texto. Si no hay fechas,
-  dice "Ver próximas fechas". El resto del mapa no se toca: ninguna otra sala
+- **Stand Up en Tres Empanadas:** Tres Empanadas lleva el pin con borde dorado
+  y una estrella, y abajo hay un aviso fijo ("Stand Up en Tres Empanadas · vie
+  21:30") con su próxima fecha y, con ubicación, la distancia. Tiene un solo
+  link, con la marca como texto. TE abre todos los viernes: el show fijo de las
+  21:30 entra cada viernes, como en En Vivo. Los jueves abre algunos nomás, así
+  que salen solo si vienen en la cartelera. Si no queda ninguna fecha, dice
+  "Ver próximas fechas". El resto del mapa no se toca: ninguna otra sala
   se oculta ni se reordena. Una sala con la misma coordenada que otra comparte
   su pin.
 - **Ubicación:** se calcula todo en el teléfono, y la página lo dice. Muestra
