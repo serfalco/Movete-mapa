@@ -132,7 +132,7 @@
 
   // --- Mapa -------------------------------------------------------------
   var mapa = null, capaPines = null, marcadorOrigen = null, marcadores = {}, primerEncuadre = true;
-  var centro = DATOS.puntos[0];
+  var centro = DATOS.centro || DATOS.puntos[0];   // en una zona, su centro
 
   function nocheAhora() {
     var oscuro = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;

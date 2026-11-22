@@ -6,6 +6,7 @@
   <title>$page_title</title>
   <meta name="description" content="$page_description">
   <link rel="canonical" href="$page_url">
+  $robots
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="MoVeTe">
   <meta property="og:title" content="$page_title">
@@ -35,9 +36,9 @@
 
   <main class="mapa-main">
     <section class="hero compact mapa-hero">
-      <p class="eyebrow">Mapa cultural · Gran La Plata</p>
-      <h1>Qué hay cerca tuyo</h1>
-      <p class="lead">Teatro, música, stand up y más en La Plata, City Bell, Gonnet, Berisso y Ensenada. <span class="mapa-total">$total eventos esta semana.</span></p>
+      <p class="eyebrow">$eyebrow</p>
+      <h1>$h1</h1>
+      <p class="lead">$lead <span class="mapa-total">$total eventos esta semana.</span></p>
     </section>
 
     <section class="mapa-controles" aria-label="Filtros del mapa">
@@ -81,7 +82,7 @@
         </section>
 
         <div class="mapa-lista-cabecera">
-          <h2 id="mapa-lista-titulo">Esta semana en el mapa</h2>
+          <h2 id="mapa-lista-titulo">$lista_titulo</h2>
           <p class="mapa-cuenta" role="status" aria-live="polite"></p>
           <div class="mapa-orden" role="group" aria-label="Ordenar" hidden>
             <button type="button" class="mapa-chip" data-orden="hora" aria-pressed="true">Por hora</button>
@@ -91,6 +92,8 @@
         <ol class="mapa-lista">$lista
         </ol>
         <p class="mapa-sin-resultados" hidden>No hay nada con esos filtros. Probá con otro día o rubro.</p>
+
+        $zonas
 
         <section class="card mapa-sumar">
           <h2>¿Tenés un evento?</h2>

@@ -238,3 +238,22 @@
 .mapa-pop .mapa-llegar { color: var(--ink); }
 .leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
 .leaflet-control-attribution { font-size: 10px; }
+
+/* --- Por zona (enlazado interno) ------------------------------------------------ */
+.mapa-zonas { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.mapa-zonas h2 { flex-basis: 100%; margin: 0 0 4px; font-size: 1.2rem; }
+.mapa-zonas a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--card);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: .9rem;
+}
+.mapa-zonas a span { font-size: .8rem; color: var(--muted); }
+.mapa-zonas a[aria-current="page"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.mapa-zonas a[aria-current="page"] span { color: inherit; opacity: .75; }

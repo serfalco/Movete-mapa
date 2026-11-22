@@ -15,6 +15,7 @@ Salida:
 
 ```txt
 Movete-info/mapa/index.html   lista indexable de la semana + el mapa
+Movete-info/mapa/<zona>/index.html   lo mismo, recortado a una zona
 Movete-info/mapa/mapa.css
 Movete-info/mapa/mapa.js
 Movete-info/mapa/sitemap-mapa.xml   lo declara Movete-info/robots.txt
@@ -52,6 +53,12 @@ y hay que pedirle las coordenadas a Tres.
   (`puntos_partida.py`, coordenadas de OSM).
 - **SEO:** la lista de eventos va en el HTML, porque Google casi no lee el mapa
   en JS.
+- **Zonas:** una página por zona en `/mapa/<zona>/` (casco, Meridiano V,
+  Tolosa, City Bell, Gonnet, Berisso y Ensenada), con su lista, su mapa
+  centrado y links a las demás. La zona de cada sala está en `zonas.py` y sale
+  de OSM. Una sala nueva con coordenadas hay que sumarla ahí; hasta entonces
+  sale solo en el mapa general. Las zonas sin eventos esa semana van con
+  `noindex` y quedan fuera del sitemap y de los links.
 
 ## Tests
 

@@ -28,6 +28,8 @@ EVENTOS = [
     ev('Recital', '2026-11-22 22:00:00', 'CASA HEREJE', 'musica'),  # misma función, otra fuente
     ev('Sin fecha', '', 'Casa Hereje'),
     ev('Algo en La Plata', '2026-11-22 18:00:00', 'La Plata', 'otros'),
+    ev('Milonga', '2026-11-22 21:00:00', 'Dynamo Teatro', 'danza'),
+    ev('Jazz en City Bell', '2026-11-22 21:00:00', 'Desafinado Club', 'musica'),
 ]
 
 
@@ -105,6 +107,43 @@ class PaginaTests(unittest.TestCase):
         self.assertIn('tiles.openfreemap.org', js)
 
 
+class ZonasTests(unittest.TestCase):
+    def setUp(self):
+        self.datos = armar_datos(EVENTOS, HOY)
+        self.por_titulo = {e['titulo']: e for e in self.datos['eventos']}
+
+    def test_zona_de_sala_con_coordenadas(self):
+        self.assertEqual(self.por_titulo['Sociedad Platense de Stand Up']['zonas'], {'casco'})
+
+    def test_meridiano_v_tambien_es_casco(self):
+        self.assertEqual(self.por_titulo['Milonga']['zonas'], {'meridiano-v', 'casco'})
+
+    def test_sala_sin_coordenadas_entra_si_la_direccion_lo_dice(self):
+        # Desafinado no tiene pin, pero su dirección dice "City Bell".
+        jazz = self.por_titulo['Jazz en City Bell']
+        self.assertIsNone(jazz['sala'])
+        self.assertEqual(jazz['zonas'], {'city-bell'})
+        self.assertEqual(self.por_titulo['Obra en sala sin coordenadas']['zonas'], set())
+
+    def test_pagina_de_zona(self):
+        html = render_pagina(self.datos, HOY, zona='city-bell')
+        self.assertIn('<h1>Qué hacer esta semana en City Bell</h1>', html)
+        self.assertIn('<link rel="canonical" href="https://movete.info/mapa/city-bell/">', html)
+        self.assertIn('Jazz en City Bell', html)
+        self.assertNotIn('Sociedad Platense de Stand Up', html)
+        self.assertNotIn('noindex', html)
+        self.assertIn('"centro":{"lat":-34.871452', html)
+
+    def test_enlaces_entre_zonas(self):
+        general = render_pagina(self.datos, HOY)
+        self.assertIn('href="/mapa/casco/"', general)
+        self.assertIn('href="/mapa/city-bell/"', general)
+        self.assertNotIn('href="/mapa/ensenada/"', general)  # vacía: no se enlaza
+        zona = render_pagina(self.datos, HOY, zona='casco')
+        self.assertIn('href="/mapa/">Todo Gran La Plata', zona)
+        self.assertIn('href="/mapa/casco/" aria-current="page"', zona)
+
+
 class GenerarTests(unittest.TestCase):
     def test_escribe_la_pagina_y_los_estaticos(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -115,7 +154,13 @@ class GenerarTests(unittest.TestCase):
                 self.assertTrue((Path(tmp) / 'mapa' / nombre).exists(), nombre)
             sitemap = (Path(tmp) / 'mapa' / 'sitemap-mapa.xml').read_text(encoding='utf-8')
             self.assertIn('<loc>https://movete.info/mapa/</loc><lastmod>2026-11-21</lastmod>', sitemap)
-            self.assertEqual(info['salas_con_pin'], 2)
+            self.assertIn('<loc>https://movete.info/mapa/city-bell/</loc>', sitemap)
+            self.assertNotIn('/mapa/ensenada/', sitemap)  # sin eventos: fuera del sitemap
+            vacia = (Path(tmp) / 'mapa' / 'ensenada' / 'index.html').read_text(encoding='utf-8')
+            self.assertIn('noindex', vacia)
+            self.assertEqual(info['salas_con_pin'], 3)
+            for z in ('casco', 'meridiano-v', 'city-bell', 'ensenada'):
+                self.assertTrue((Path(tmp) / 'mapa' / z / 'index.html').exists(), z)
             self.assertIn('Telón Negro Teatro', info['sin_coordenadas'])
 
 

@@ -50,6 +50,7 @@ from generar_edicion import (  # noqa: E402
 from venues import venue_canonico, venue_info, venue_slug  # noqa: E402
 
 from puntos_partida import PUNTOS_PARTIDA  # noqa: E402
+from zonas import ZONAS, zonas_de  # noqa: E402
 
 # El mapa muestra de hoy en adelante: la semana que filtra la página y un día
 # de margen, porque el generador corre martes, jueves y domingo.
@@ -135,6 +136,7 @@ def armar_datos(eventos: list[dict], hoy: date, dias: int = DIAS_VENTANA) -> dic
             'direccion': direccion,
             'link': f'/en-vivo/obra/{oslug}/' if oslug else evento_url(ev),
             'entradas': evento_url(ev) if oslug else '',
+            'zonas': zonas_de(vc['slug'] if vc else None, direccion),
         })
 
     items.sort(key=lambda e: (e['f'], e['titulo'].casefold()))
@@ -198,7 +200,7 @@ def render_item(item: dict, salas: dict) -> str:
       </li>"""
 
 
-def datos_cliente(datos: dict) -> str:
+def datos_cliente(datos: dict, centro: tuple[float, float] | None = None) -> str:
     """JSON que lee mapa.js. Seguro para ir dentro de <script>."""
     eventos = [{
         'id': it['id'],
@@ -216,6 +218,8 @@ def datos_cliente(datos: dict) -> str:
         'puntos': [{'id': k, 'nombre': n, 'lat': la, 'lng': lo} for k, n, la, lo in PUNTOS_PARTIDA],
         'rubros': rubros,
     }
+    if centro:
+        payload['centro'] = {'lat': centro[0], 'lng': centro[1]}
     return json.dumps(payload, ensure_ascii=False, separators=(',', ':')).replace('<', '\\u003c')
 
 
@@ -238,50 +242,125 @@ def _version(path: Path) -> str:
     return hashlib.sha1(path.read_bytes()).hexdigest()[:10]
 
 
-def render_pagina(datos: dict, hoy: date) -> str:
+def datos_de_zona(datos: dict, zona: str) -> dict:
+    """Los datos recortados a una zona: sus eventos y las salas con pin."""
+    eventos = [it for it in datos['eventos'] if zona in it['zonas']]
+    usadas = {it['sala'] for it in eventos if it['sala']}
+    return {**datos, 'eventos': eventos,
+            'salas': {k: v for k, v in datos['salas'].items() if k in usadas}}
+
+
+def cuentas_por_zona(datos: dict) -> dict[str, int]:
+    return {z: sum(1 for it in datos['eventos'] if z in it['zonas']) for z, _n, _p in ZONAS}
+
+
+def render_zonas(cuentas: dict[str, int], actual: str | None) -> str:
+    """Enlazado interno entre el mapa general y las zonas con eventos."""
+    links = []
+    if actual:
+        links.append('<a href="/mapa/">Todo Gran La Plata</a>')
+    for z, nombre, _p in ZONAS:
+        n = cuentas.get(z, 0)
+        if not n:
+            continue
+        corto = 'Casco' if z == 'casco' else nombre
+        if z == actual:
+            links.append(f'<a href="/mapa/{z}/" aria-current="page">{esc(corto)} <span>{n}</span></a>')
+        else:
+            links.append(f'<a href="/mapa/{z}/">{esc(corto)} <span>{n}</span></a>')
+    if len(links) <= 1:
+        return ''
+    return ('<nav class="mapa-zonas" aria-label="Zonas">\n        <h2>Por zona</h2>\n        '
+            + '\n        '.join(links) + '\n      </nav>')
+
+
+def render_pagina(datos: dict, hoy: date, zona: str | None = None,
+                  cuentas: dict[str, int] | None = None) -> str:
+    cuentas = cuentas if cuentas is not None else cuentas_por_zona(datos)
+    centro = None
+    if zona:
+        _z, nombre_zona, punto = next(z for z in ZONAS if z[0] == zona)
+        datos = datos_de_zona(datos, zona)
+        centro = next(((la, lo) for k, _n, la, lo in PUNTOS_PARTIDA if k == punto), None)
     items = datos['eventos']
     lista = ''.join(render_item(it, datos['salas']) for it in items)
     if not items:
-        lista = '\n      <li class="mapa-vacio">Esta semana todavía no cargamos eventos. Volvé en un rato.</li>'
-    con_pin = sum(1 for it in items if it['sala'])
+        donde = f' en {nombre_zona}' if zona else ''
+        lista = (f'\n      <li class="mapa-vacio">Esta semana todavía no cargamos eventos{esc(donde)}. '
+                 '<a href="/mapa/">Mirá todo el mapa →</a></li>')
+    if zona:
+        page_title = f'Qué hacer esta semana en {nombre_zona} · Mapa cultural · MoVeTe'
+        page_description = (f'Teatro, música, stand up y más en {nombre_zona} esta semana: '
+                            f'{len(items)} eventos en el mapa, con cómo llegar.')
+        h1 = f'Qué hacer esta semana en {nombre_zona}'
+        eyebrow = f'Mapa cultural · {nombre_zona[0].upper() + nombre_zona[1:]}'
+        lead = f'Lo que hay esta semana en {nombre_zona}, en el mapa y en la lista.'
+        page_url = f'https://movete.info/mapa/{zona}/'
+        lista_titulo = f'Esta semana en {nombre_zona}'
+    else:
+        page_title = 'Mapa cultural de La Plata: qué hay cerca tuyo · MoVeTe'
+        page_description = ('Mapa de teatro, música, stand up y más en La Plata, City Bell, '
+                            'Gonnet, Berisso y Ensenada. Mirá qué hay cerca tuyo esta semana.')
+        h1 = 'Qué hay cerca tuyo'
+        eyebrow = 'Mapa cultural · Gran La Plata'
+        lead = 'Teatro, música, stand up y más en La Plata, City Bell, Gonnet, Berisso y Ensenada.'
+        page_url = 'https://movete.info/mapa/'
+        lista_titulo = 'Esta semana en el mapa'
     plantilla = Template((AQUI / 'plantilla.html').read_text(encoding='utf-8'))
     return plantilla.substitute(
-        page_title='Mapa cultural de La Plata: qué hay cerca tuyo · MoVeTe',
-        page_description=('Mapa de teatro, música, stand up y más en La Plata, City Bell, '
-                          'Gonnet, Berisso y Ensenada. Mirá qué hay cerca tuyo esta semana.'),
-        page_url='https://movete.info/mapa/',
+        page_title=esc(page_title),
+        page_description=esc(page_description),
+        page_url=page_url,
+        # Una zona sin eventos existe (no rompe links viejos) pero no se indexa.
+        robots='<meta name="robots" content="noindex, follow">' if not items else '',
+        eyebrow=esc(eyebrow),
+        h1=esc(h1),
+        lead=esc(lead),
+        lista_titulo=esc(lista_titulo),
         total=len(items),
-        con_pin=con_pin,
         rubros=render_rubros(datos),
         puntos=render_puntos(),
         lista=lista,
-        datos=datos_cliente(datos),
+        zonas=render_zonas(cuentas, zona),
+        datos=datos_cliente(datos, centro),
         anio=hoy.year,
         v_css=_version(AQUI / 'static' / 'mapa.css'),
         v_js=_version(AQUI / 'static' / 'mapa.js'),
     )
 
 
+def escribir_sitemap(out: Path, cuentas: dict[str, int], hoy: date) -> None:
+    """Sitemap propio, como cine/sitemap-pelis.xml: robots.txt lo declara.
+    Solo entran las zonas con eventos (las vacías van con noindex)."""
+    urls = ['https://movete.info/mapa/'] + [
+        f'https://movete.info/mapa/{z}/' for z, _n, _p in ZONAS if cuentas.get(z)]
+    filas = ''.join(f'  <url><loc>{u}</loc><lastmod>{hoy.isoformat()}</lastmod></url>\n' for u in urls)
+    (out / 'sitemap-mapa.xml').write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f'{filas}</urlset>\n', encoding='utf-8')
+
+
 def generar(eventos_json: str | Path, output_dir: str | Path, hoy: date | None = None) -> dict:
     hoy = hoy or hoy_argentina()
     eventos, _generado = cargar_eventos(eventos_json)
     datos = armar_datos(eventos, hoy)
+    cuentas = cuentas_por_zona(datos)
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
-    (out / 'index.html').write_text(render_pagina(datos, hoy), encoding='utf-8')
+    (out / 'index.html').write_text(render_pagina(datos, hoy, cuentas=cuentas), encoding='utf-8')
+    for z, _n, _p in ZONAS:
+        (out / z).mkdir(exist_ok=True)
+        (out / z / 'index.html').write_text(
+            render_pagina(datos, hoy, zona=z, cuentas=cuentas), encoding='utf-8')
     for nombre in ('mapa.css', 'mapa.js'):
         shutil.copyfile(AQUI / 'static' / nombre, out / nombre)
-    # Sitemap propio, como cine/sitemap-pelis.xml: robots.txt lo declara.
-    # Las páginas por zona (paso 3) se suman acá.
-    (out / 'sitemap-mapa.xml').write_text(
-        '<?xml version="1.0" encoding="UTF-8"?>\n'
-        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-        f'  <url><loc>https://movete.info/mapa/</loc><lastmod>{hoy.isoformat()}</lastmod></url>\n'
-        '</urlset>\n', encoding='utf-8')
+    escribir_sitemap(out, cuentas, hoy)
     return {
         'eventos': len(datos['eventos']),
         'con_pin': sum(1 for it in datos['eventos'] if it['sala']),
         'salas_con_pin': len(datos['salas']),
+        'por_zona': cuentas,
         'sin_coordenadas': sorted(datos['sin_coordenadas'].values()),
     }
 
