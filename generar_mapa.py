@@ -271,6 +271,13 @@ def generar(eventos_json: str | Path, output_dir: str | Path, hoy: date | None =
     (out / 'index.html').write_text(render_pagina(datos, hoy), encoding='utf-8')
     for nombre in ('mapa.css', 'mapa.js'):
         shutil.copyfile(AQUI / 'static' / nombre, out / nombre)
+    # Sitemap propio, como cine/sitemap-pelis.xml: robots.txt lo declara.
+    # Las páginas por zona (paso 3) se suman acá.
+    (out / 'sitemap-mapa.xml').write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f'  <url><loc>https://movete.info/mapa/</loc><lastmod>{hoy.isoformat()}</lastmod></url>\n'
+        '</urlset>\n', encoding='utf-8')
     return {
         'eventos': len(datos['eventos']),
         'con_pin': sum(1 for it in datos['eventos'] if it['sala']),

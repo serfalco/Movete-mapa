@@ -111,8 +111,10 @@ class GenerarTests(unittest.TestCase):
             entrada = Path(tmp) / 'eventos.json'
             entrada.write_text(json.dumps({'eventos': EVENTOS}), encoding='utf-8')
             info = generar(entrada, Path(tmp) / 'mapa', hoy=HOY)
-            for nombre in ('index.html', 'mapa.css', 'mapa.js'):
+            for nombre in ('index.html', 'mapa.css', 'mapa.js', 'sitemap-mapa.xml'):
                 self.assertTrue((Path(tmp) / 'mapa' / nombre).exists(), nombre)
+            sitemap = (Path(tmp) / 'mapa' / 'sitemap-mapa.xml').read_text(encoding='utf-8')
+            self.assertIn('<loc>https://movete.info/mapa/</loc><lastmod>2026-11-21</lastmod>', sitemap)
             self.assertEqual(info['salas_con_pin'], 2)
             self.assertIn('Telón Negro Teatro', info['sin_coordenadas'])
 

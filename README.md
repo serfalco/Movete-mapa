@@ -17,6 +17,7 @@ Salida:
 Movete-info/mapa/index.html   lista indexable de la semana + el mapa
 Movete-info/mapa/mapa.css
 Movete-info/mapa/mapa.js
+Movete-info/mapa/sitemap-mapa.xml   lo declara Movete-info/robots.txt
 ```
 
 Correr local (con `movete-espectaculos` clonado al lado):
