@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>$page_title</title>
+  <meta name="description" content="$page_description">
+  <link rel="canonical" href="$page_url">
+  $robots
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="MoVeTe">
+  <meta property="og:title" content="$page_title">
+  <meta property="og:description" content="$page_description">
+  <meta property="og:url" content="$page_url">
+  <meta property="og:image" content="https://movete.info/assets/images/cartelera-en-vivo.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="/assets/css/movete.css">
+  <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="/mapa/mapa.css?v=$v_css">
+</head>
+<body id="top" class="pagina-mapa">
+  <header class="site-header">
+    <a class="brand" href="/">MoVeTe<span>●</span></a>
+    <nav class="site-nav" aria-label="Secciones principales">
+      <a href="/">Inicio</a>
+      <a href="/cine/">Cine</a>
+      <a href="/en-vivo/">En vivo</a>
+      <a href="/mapa/" aria-current="page">Mapa</a>
+    </nav>
+  </header>
+
+  <main class="mapa-main">
+    <section class="hero compact mapa-hero">
+      <p class="eyebrow">$eyebrow</p>
+      <h1>$h1</h1>
+      <p class="lead">$lead <span class="mapa-total">$total eventos esta semana.</span></p>
+    </section>
+
+    <section class="mapa-controles" aria-label="Filtros del mapa">
+      <div class="mapa-fila" role="group" aria-label="Cuándo">
+        <button type="button" class="mapa-chip" data-cuando="hoy" aria-pressed="false">Hoy</button>
+        <button type="button" class="mapa-chip" data-cuando="noche" aria-pressed="false">Esta noche</button>
+        <button type="button" class="mapa-chip" data-cuando="finde" aria-pressed="false">Finde</button>
+        <button type="button" class="mapa-chip" data-cuando="semana" aria-pressed="true">Semana</button>
+      </div>
+      <div class="mapa-fila" role="group" aria-label="Horario">
+        <button type="button" class="mapa-chip" data-franja="" aria-pressed="true">A cualquier hora</button>
+        <button type="button" class="mapa-chip" data-franja="tarde" aria-pressed="false">Tarde</button>
+        <button type="button" class="mapa-chip" data-franja="noche" aria-pressed="false">Noche</button>
+        $gratis
+      </div>
+      <div class="mapa-fila mapa-rubros" role="group" aria-label="Rubro">
+          $rubros
+      </div>
+      <div class="mapa-fila" role="group" aria-label="Qué ver en el mapa">
+        $ver_lugares
+      </div>
+      <div class="mapa-ubicacion">
+        <button type="button" class="button small mapa-geo">Usar mi ubicación</button>
+        <button type="button" class="button small secondary mapa-sorprendeme">Sorprendeme</button>
+        <label class="mapa-partida">o salí desde
+          <select class="mapa-punto" aria-label="Punto de partida">
+            <option value="">elegí un lugar</option>
+            $puntos
+          </select>
+        </label>
+        <p class="mapa-privacidad">Tu ubicación se usa solo en tu teléfono: no llega a MoVeTe.</p>
+        <p class="mapa-geo-estado" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <div class="mapa-layout">
+      <div class="mapa-lienzo">
+        <div id="mapa" role="region" aria-label="Mapa de eventos"></div>
+        <noscript><p class="mapa-noscript">El mapa necesita JavaScript. Abajo está la lista completa.</p></noscript>
+      </div>
+
+      <section class="mapa-panel" aria-labelledby="mapa-lista-titulo">
+        <section class="mapa-sorpresa" hidden aria-live="polite" aria-labelledby="mapa-sorpresa-titulo">
+          <h2 id="mapa-sorpresa-titulo">Te toca</h2>
+          <div class="mapa-sorpresa-cuerpo"></div>
+          <button type="button" class="mapa-chip mapa-sorpresa-otra">Otro</button>
+        </section>
+
+        <section class="mapa-cerca" hidden aria-labelledby="mapa-cerca-titulo">
+          <h2 id="mapa-cerca-titulo">Cerca tuyo ahora</h2>
+          <ol class="mapa-cerca-lista"></ol>
+        </section>
+
+        <div class="mapa-lista-cabecera">
+          <h2 id="mapa-lista-titulo">$lista_titulo</h2>
+          <p class="mapa-cuenta" role="status" aria-live="polite"></p>
+          <div class="mapa-orden" role="group" aria-label="Ordenar" hidden>
+            <button type="button" class="mapa-chip" data-orden="hora" aria-pressed="true">Por hora</button>
+            <button type="button" class="mapa-chip" data-orden="cerca" aria-pressed="false">Más cerca</button>
+          </div>
+        </div>
+        <ol class="mapa-lista">$lista
+        </ol>
+        <p class="mapa-sin-resultados" hidden>No hay nada con esos filtros. Probá con otro día o rubro.</p>
+
+        $lugares
+
+        $zonas
+
+        <section class="card mapa-sumar">
+          <h2>¿Tenés un evento?</h2>
+          <p>Sumalo gratis a la cartelera y al mapa.</p>
+          <a class="button small" href="/sumar/">Sumá tu evento</a>
+        </section>
+      </section>
+    </div>
+
+    <p class="site-notice">La info puede cambiar. Confirmá horarios y disponibilidad con cada sala o espacio.</p>
+  </main>
+
+  $aviso
+
+  <footer class="site-footer">
+    <p class="footer-line">
+      <span class="footer-brand">MoVeTe<span>.</span></span>
+      <span aria-hidden="true">·</span>
+      <span>La Plata</span>
+      <span aria-hidden="true">·</span>
+      <span>$anio</span>
+      <span aria-hidden="true">·</span>
+      <a href="/en-vivo/">Cartelera</a>
+    </p>
+  </footer>
+
+  <script id="mapa-datos" type="application/json">$datos</script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js" defer></script>
+  <script src="/mapa/mapa.js?v=$v_js" defer></script>
+  <script src="/assets/js/movete.js" defer></script>
+</body>
+</html>
